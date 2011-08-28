@@ -205,7 +205,7 @@ class String(Schema):
     def _convert(self, value, path):
         for converter in self._converters:
             value = converter(value)
-        if not value and not value.blank:
+        if not value and not self.blank:
             raise Invalid(path, 'This value is required.')
         return value
 
@@ -287,7 +287,7 @@ DATETIME_INPUT_FORMATS = (
 def parse_datetime(value, path):
     for format in DATETIME_INPUT_FORMATS:
         try:
-            return datetime.datetime(*strptime(value, format)[:6])
+            return datetime(*strptime(value, format)[:6])
         except ValueError:
             continue
     raise Invalid('Please enter a valid date/time.')
@@ -313,7 +313,7 @@ TIME_INPUT_FORMATS = (
 def parse_time(value, path):
     for format in TIME_INPUT_FORMATS:
         try:
-            return datetime.time(*strptime(value, format)[3:6])
+            return time(*strptime(value, format)[3:6])
         except ValueError:
             continue
     raise Invalid('Please enter a valid time.')
