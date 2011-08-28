@@ -295,7 +295,7 @@ def parse_datetime(value, path):
             return datetime(*strptime(value, format)[:6])
         except ValueError:
             continue
-    raise Invalid('Please enter a valid date/time.')
+    raise Invalid(path, 'Please enter a valid date/time.')
 
 DATE_INPUT_FORMATS = (
     '%Y-%m-%d', '%m/%d/%Y', '%m/%d/%y',  # '2006-10-25', '10/25/2006', '10/25/06'
@@ -308,7 +308,7 @@ def parse_date(value, path):
             return date(*strptime(value, format)[:3])
         except ValueError:
             continue
-    raise Invalid('Please enter a valid date.')
+    raise Invalid(path, 'Please enter a valid date.')
 
 TIME_INPUT_FORMATS = (
     '%H:%M:%S',     # '14:30:59'
@@ -321,4 +321,4 @@ def parse_time(value, path):
             return time(*strptime(value, format)[3:6])
         except ValueError:
             continue
-    raise Invalid('Please enter a valid time.')
+    raise Invalid(path, 'Please enter a valid time.')
