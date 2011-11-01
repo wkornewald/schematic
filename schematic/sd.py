@@ -62,6 +62,24 @@ class MaxValue(object):
             raise Invalid(path, 'This value must be smaller than %s.'
                                 % self.max_value)
 
+class Equals(object):
+    def __init__(self, value):
+        self.value = value
+
+    def __call__(self, value, path):
+        if value != self.value:
+            raise Invalid(path, 'This value must be equal to %s.'
+                                % self.value)
+
+class In(object):
+    def __init__(self, choice):
+        self.choice = choice
+
+    def __call__(self, value, path):
+        if value not in self.choice:
+            raise Invalid(path, 'This value must be one of: %s'
+                                % ', '.join(map(unicode, self.choice)))
+
 email_re = re.compile(
     # dot-atom
     r"(^[-!#$%&'*+/=?^_`{}|~0-9A-Z]+(\.[-!#$%&'*+/=?^_`{}|~0-9A-Z]+)*"
