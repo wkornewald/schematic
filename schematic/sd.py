@@ -180,27 +180,50 @@ class Dict(NestedSchema):
 
         errors = []
         result = {}
-        seen = set()
-        for key, schema in self.schema.items():
-            if schema.optional and key not in value:
-                continue
+        # We support two modes of operation.
+        # a) Only the type of the key and the value are specified. Any keys are accepted.
+        #    In this case, self.schema is a tuple.
+        # b) The complete set of allowed keys is specified.
+        #    In this case self.schema is a dict.
+        if isinstance(self.schema, (tuple, list)):
+            key_schema, value_schema = self.schema
+            for key, value in value.items():
+                try:
+                    result_key = key_schema.convert(key, path + (key,))
+                except Invalid, error:
+                    errors.append(error)
+                try:
+                    result[result_key] = value_schema.convert(value, path + (key,))
+                except Invalid, error:
+                    errors.append(error)
 
-            seen.add(key)
-            try:
-                result[key] = schema.convert(value[key], path + (key,))
-            except Invalid, error:
-                errors.append(error)
+                if errors:
+                    raise Invalid(path, children=errors)
+        else:
+            seen = set()
+            for key, schema in self.schema.items():
+                if schema.optional and key not in value:
+                    continue
 
-        error = None
-        non_converted = set(value) - seen
-        if non_converted:
-            error = Invalid(path, 'Unconverted values: %s' % ', '.join(non_converted))
-        if errors:
-            if not error:
-                error = Invalid(path)
-            error.add(errors)
-        if error is not None:
-            raise error
+                seen.add(key)
+                try:
+                    if key not in value:
+                        raise Invalid(path + (key,), 'The "%s" entry is missing.'
+                                                     % key)
+                    result[key] = schema.convert(value[key], path + (key,))
+                except Invalid, error:
+                    errors.append(error)
+
+            error = None
+            non_converted = set(value) - seen
+            if non_converted:
+                error = Invalid(path, 'Unconverted values: %s' % ', '.join(non_converted))
+            if errors:
+                if not error:
+                    error = Invalid(path)
+                error.add(errors)
+            if error is not None:
+                raise error
 
         return result
 
