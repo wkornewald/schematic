@@ -228,17 +228,17 @@ class IterableSchema(NestedSchema):
 
         return self._type(result)
 
-class List(NestedSchema):
+class List(IterableSchema):
     _type_error = 'This value must be a list.'
     _type = list
 
-class Tuple(NestedSchema):
+class Tuple(IterableSchema):
     _type_error = 'This value must be a tuple.'
     _type = tuple
 
-class Set(NestedSchema):
+class Set(IterableSchema):
     _type_error = 'This value must be a set.'
-    _type = tuple
+    _type = set
 
 class Generic(Schema):
     def _convert(self, value, path):
