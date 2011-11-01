@@ -138,6 +138,25 @@ class Schema(object):
     def _convert(self, value, path=()):
         raise NotImplementedError()
 
+class OneOf(Schema):
+    def __init__(self, choice=(), **kwargs):
+        self.choice = list(choice)
+        super(OneOf, self).__init__(**kwargs)
+
+    def _convert(self, value, path):
+        for schema in self.choice:
+            if isinstance(schema, (tuple, list)):
+                checker, schema = schema
+                if not checker(value):
+                    continue
+                return schema.convert(value, path)
+            else:
+                try:
+                    return schema.convert(value, path)
+                except Invalid:
+                    pass
+        raise Invalid(path, "This value doesn't match any acceptable schema.")
+
 class NestedSchema(Schema):
     def __init__(self, schema=None, **kwargs):
         self.schema = schema
