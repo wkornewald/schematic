@@ -162,14 +162,6 @@ class NestedSchema(Schema):
         self.schema = schema
         super(NestedSchema, self).__init__(**kwargs)
 
-# This is primarily useful for lightquery's Pickled field because they require that
-# you specify a schema class and its arguments separately instead of passing the whole
-# schema instance directly. Just specify PassThrough as your class and pass the schema
-# instance via the 'schema' argument.
-class PassThrough(NestedSchema):
-    def _convert(self, value, path):
-        return self.schema._convert(value, path)
-
 class Dict(NestedSchema):
     def _convert(self, value, path):
         if not isinstance(value, dict):
