@@ -20,6 +20,8 @@ class SchemaTests(TestCase):
     int_set = sd.Set(sd.Int())
     tuple_set = sd.Set(sd.Tuple(sd.Int()))
 
+    ordered_tuple = sd.Tuple((sd.Int(), sd.Bool()))
+
     one_of = sd.OneOf([(lambda x: isinstance(x, dict), person),
                        (lambda x: True, int_set)])
 
@@ -56,3 +58,7 @@ class SchemaTests(TestCase):
                          self.sample_person)
         self.assertRaises(sd.Invalid,
                           lambda: self.one_of.convert(self.bad_sample_person))
+
+    def test_ordered_tuple(self):
+        self.assertEqual(self.ordered_tuple.convert((1.1, 45.1)),
+                         (1, True))

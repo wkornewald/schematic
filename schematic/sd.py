@@ -240,11 +240,30 @@ class IterableSchema(NestedSchema):
 
         errors = []
         result = []
-        for index, subvalue in enumerate(value):
-            try:
-                result.append(self.schema.convert(subvalue, path + (index,)))
-            except Invalid, error:
+
+        # We support two modes of operation.
+        # a) The schema is an ordered list of entries. Each entry must match a certain
+        #    schema and the length of the value is fixed.
+        #    In this case, self.schema is a tuple.
+        # b) All entries have the same schema and the length of the value doesn't matter.
+        #    In this case self.schema is a schema instance.
+        if isinstance(self.schema, (tuple, list)):
+            if len(value) != len(self.schema):
+                error = Invalid(path, 'This value must have %d entries.'
+                                      % len(self.schema))
                 errors.append(error)
+            for index, subvalue in enumerate(value):
+                schema = self.schema[index]
+                try:
+                    result.append(schema.convert(subvalue, path + (index,)))
+                except Invalid, error:
+                    errors.append(error)
+        else:
+            for index, subvalue in enumerate(value):
+                try:
+                    result.append(self.schema.convert(subvalue, path + (index,)))
+                except Invalid, error:
+                    errors.append(error)
 
         if errors:
             raise Invalid(path, children=errors)
