@@ -147,7 +147,10 @@ class OneOf(Schema):
         for schema in self.choice:
             if isinstance(schema, (tuple, list)):
                 checker, schema = schema
-                if not checker(value):
+                try:
+                    if not checker(value):
+                        continue
+                except:
                     continue
                 return schema.convert(value, path)
             else:
