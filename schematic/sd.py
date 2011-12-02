@@ -364,6 +364,11 @@ class Email(String):
     validators = [MaxLength(254), EmailValidator()]
 
 DATETIME_INPUT_FORMATS = (
+    # ISO 8601
+    '%Y-%m-%dT%H:%M:%S.%f',  # '2006-10-25T14:30:59.123456'
+    '%Y-%m-%dT%H:%M:%S',     # '2006-10-25T14:30:59'
+
+    # Human
     '%Y-%m-%d %H:%M:%S',     # '2006-10-25 14:30:59'
     '%Y-%m-%d %H:%M',        # '2006-10-25 14:30'
     '%m/%d/%Y %H:%M:%S',     # '10/25/2006 14:30:59'
