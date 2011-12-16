@@ -129,7 +129,7 @@ class Schema(object):
         for validator in self.validators:
             try:
                 validator(value, path)
-            except Invalid, error:
+            except Invalid as error:
                 errors.append(error)
         if errors:
             raise Invalid(path, children=errors)
@@ -185,11 +185,11 @@ class Dict(NestedSchema):
             for key, value in value.items():
                 try:
                     result_key = key_schema.convert(key, path + (key,))
-                except Invalid, error:
+                except Invalid as error:
                     errors.append(error)
                 try:
                     result[result_key] = value_schema.convert(value, path + (key,))
-                except Invalid, error:
+                except Invalid as error:
                     errors.append(error)
 
                 if errors:
@@ -206,7 +206,7 @@ class Dict(NestedSchema):
                         raise Invalid(path + (key,), 'The "%s" entry is missing.'
                                                      % key)
                     result[key] = schema.convert(value[key], path + (key,))
-                except Invalid, error:
+                except Invalid as error:
                     errors.append(error)
 
             error = None
@@ -251,13 +251,13 @@ class IterableSchema(NestedSchema):
                 schema = self.schema[index]
                 try:
                     result.append(schema.convert(subvalue, path + (index,)))
-                except Invalid, error:
+                except Invalid as error:
                     errors.append(error)
         else:
             for index, subvalue in enumerate(value):
                 try:
                     result.append(self.schema.convert(subvalue, path + (index,)))
-                except Invalid, error:
+                except Invalid as error:
                     errors.append(error)
 
         if errors:
