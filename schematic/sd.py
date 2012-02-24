@@ -39,7 +39,7 @@ class MaxLength(object):
     def __init__(self, max_length):
         self.max_length = max_length
 
-    def __call__(self, value, path):
+    def check(self, value, path):
         if len(value) > self.max_length:
             raise Invalid(path, 'Ensure this value has at most %d characters '
                                 '(it has %d).' % (self.max_length, len(value)))
@@ -48,7 +48,7 @@ class MinValue(object):
     def __init__(self, min_value):
         self.min_value = min_value
 
-    def __call__(self, value, path):
+    def check(self, value, path):
         if value < self.min_value:
             raise Invalid(path, 'This value must be larger than %s.'
                                 % self.min_value)
@@ -57,7 +57,7 @@ class MaxValue(object):
     def __init__(self, max_value):
         self.max_value = max_value
 
-    def __call__(self, value, path):
+    def check(self, value, path):
         if value < self.min_value:
             raise Invalid(path, 'This value must be smaller than %s.'
                                 % self.max_value)
@@ -66,7 +66,7 @@ class Equals(object):
     def __init__(self, value):
         self.value = value
 
-    def __call__(self, value, path):
+    def check(self, value, path):
         if value != self.value:
             raise Invalid(path, 'This value must be equal to %s.'
                                 % self.value)
@@ -75,7 +75,7 @@ class In(object):
     def __init__(self, choice):
         self.choice = choice
 
-    def __call__(self, value, path):
+    def check(self, value, path):
         if value not in self.choice:
             raise Invalid(path, 'This value must be one of: %s'
                                 % ', '.join(map(unicode, self.choice)))
@@ -92,7 +92,7 @@ email_re = re.compile(
     re.IGNORECASE)
 
 class EmailValidator(object):
-    def __call__(self, value, path):
+    def check(self, value, path):
         if not email_re.match(value):
             # Trivial case failed. Try for possible IDN domain-part
             if value and u'@' in value:
@@ -128,7 +128,7 @@ class Schema(object):
         errors = []
         for validator in self.validators:
             try:
-                validator(value, path)
+                validator.check(value, path)
             except Invalid as error:
                 errors.append(error)
         if errors:
