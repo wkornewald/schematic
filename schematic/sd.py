@@ -121,7 +121,7 @@ class Schema(object):
 
         if value is None:
             if not self.null:
-                raise Invalid(path, 'This value may not be None.')
+                raise Invalid(path, 'This value is required.')
             return None
         value = self._convert(value, path)
 
