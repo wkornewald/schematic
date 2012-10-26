@@ -7,7 +7,9 @@ class Invalid(Exception):
     def __init__(self, path=(), messages=(), children=()):
         if not isinstance(messages, (list, tuple)):
             messages = [messages]
-        self.messages = {path: list(messages)}
+        self.messages = {}
+        if messages:
+            self.messages[path] = list(messages)
         self.add(children)
 
     def __str__(self):
@@ -101,8 +103,10 @@ class EmailValidator(object):
                     parts[-1] = parts[-1].encode('idna')
                 except UnicodeError:
                     raise
-            if not email_re.match(u'@'.join(parts)):
-                raise Invalid(path, 'Enter a valid e-mail address.')
+                value = u'@'.join(parts)
+            if email_re.match(value):
+                return
+            raise Invalid(path, 'Enter a valid e-mail address.')
 
 class Schema(object):
     default_validators = []
@@ -361,7 +365,7 @@ class Time(Schema):
         return value
 
 class Email(String):
-    validators = [MaxLength(254), EmailValidator()]
+    default_validators = [MaxLength(254), EmailValidator()]
 
 DATETIME_INPUT_FORMATS = (
     # ISO 8601
