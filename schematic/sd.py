@@ -110,7 +110,6 @@ class EmailValidator(object):
 
 class Schema(object):
     default_validators = []
-    empty_string_equals_None = True
 
     def __init__(self, null=False, optional=False, validators=None):
         self.null = null
@@ -120,9 +119,6 @@ class Schema(object):
             self.validators.extend(validators)
 
     def convert(self, value, path=()):
-        if self.empty_string_equals_None and value == '':
-            value = None
-
         if value is None:
             if not self.null:
                 raise Invalid(path, 'This value is required.')
@@ -294,13 +290,17 @@ class String(Schema):
     def __init__(self, blank=False, **kwargs):
         super(String, self).__init__(**kwargs)
         self.blank = blank
-        self.empty_string_equals_None = not blank
+
+    def convert(self, value, path=()):
+        if value == '':
+            if not self.blank:
+                raise Invalid(path, 'This value is required.')
+            return value
+        return super(String, self).convert(value, path)
 
     def _convert(self, value, path):
         for converter in self._converters:
             value = converter(value)
-        if not value and not self.blank:
-            raise Invalid(path, 'This value is required.')
         return value
 
 class Blob(String):
