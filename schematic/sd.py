@@ -17,8 +17,8 @@ class Invalid(Exception):
 
     def __unicode__(self):
         result = []
-        for path, messages in self.messages.items():
-            prefix = '.'.join(map(force_unicode, path)) + ': ' if path else ''
+        for path, messages in self.flattened():
+            prefix = path + ': ' if path else ''
             for index, message in enumerate(messages):
                 if index == 0:
                     result.append(prefix + message)
@@ -28,6 +28,10 @@ class Invalid(Exception):
         if len(result) == 1:
             return result[0]
         return '\n' + '\n'.join(result)
+
+    def flattened(self):
+        return {'.'.join(map(force_unicode, path)): submessages
+                for path, submessages in self.messages.items()}
 
     def add(self, errors):
         if not hasattr(errors, '__iter__'):
