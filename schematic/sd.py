@@ -29,6 +29,9 @@ class Invalid(Exception):
             return result[0]
         return '\n' + '\n'.join(result)
 
+    def __repr__(self):
+        return str(self)
+
     def flattened(self):
         return {'.'.join(map(force_unicode, path)): submessages
                 for path, submessages in self.messages.items()}
