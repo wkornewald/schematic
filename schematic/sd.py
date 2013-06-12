@@ -12,6 +12,9 @@ class Invalid(Exception):
             self.messages[path] = list(messages)
         self.add(children)
 
+    def __repr__(self):
+        return str(self)
+
     def __str__(self):
         return force_str(unicode(self))
 
@@ -114,6 +117,8 @@ class EmailValidator(object):
 
 class Schema(object):
     default_validators = []
+    # Forms can only represent empty strings, but not None. This deals with empty strings.
+    empty_string_equals_None = True
 
     def __init__(self, null=False, optional=False, validators=None):
         self.null = null
@@ -123,6 +128,9 @@ class Schema(object):
             self.validators.extend(validators)
 
     def convert(self, value, path=()):
+        if self.empty_string_equals_None and value == '':
+            value = None
+
         if value is None:
             if not self.null:
                 raise Invalid(path, 'This value is required.')
@@ -292,17 +300,16 @@ class String(Schema):
     _converters = [force_unicode]
 
     def __init__(self, blank=False, **kwargs):
+        self.empty_string_equals_None = not blank
         super(String, self).__init__(**kwargs)
         self.blank = blank
 
-    def convert(self, value, path=()):
-        if value == '':
+    def _convert(self, value, path):
+        # Check for blank
+        if value == '' :
             if not self.blank:
                 raise Invalid(path, 'This value is required.')
             return value
-        return super(String, self).convert(value, path)
-
-    def _convert(self, value, path):
         for converter in self._converters:
             value = converter(value)
         return value

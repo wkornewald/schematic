@@ -25,6 +25,9 @@ class SchemaTests(TestCase):
     one_of = sd.OneOf([(lambda x: isinstance(x, dict), person),
                        (lambda x: True, int_set)])
 
+    def test_empty_string_to_None(self):
+        self.assertEqual(None, sd.String(null=True).convert(''))
+
     def test_person(self):
         self.assertEqual(self.person.convert(self.sample_person),
                          self.sample_person)
