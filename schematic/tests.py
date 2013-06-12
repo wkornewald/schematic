@@ -65,3 +65,11 @@ class SchemaTests(TestCase):
     def test_ordered_tuple(self):
         self.assertEqual(self.ordered_tuple.convert((1.1, 45.1)),
                          (1, True))
+
+    def test_email(self):
+        self.assertEqual(None, sd.Email(null=True).convert(''))
+        self.assertEqual(None, sd.Email(null=True).convert(None))
+        self.assertEqual('', sd.Email(blank=True).convert(''))
+        self.assertEqual('', sd.Email(null=True, blank=True).convert(''))
+        self.assertEqual(None, sd.Email(null=True, blank=True).convert(None))
+        self.assertRaises(sd.Invalid, lambda: sd.Email(blank=True).convert(None))
