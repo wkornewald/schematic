@@ -59,8 +59,7 @@ class MinValue(object):
 
     def check(self, value, path):
         if value < self.min_value:
-            raise Invalid(path, 'This value must be larger than %s.'
-                                % self.min_value)
+            raise Invalid(path, 'This value must be larger than %s.' % self.min_value)
 
 class MaxValue(object):
     def __init__(self, max_value):
@@ -68,8 +67,7 @@ class MaxValue(object):
 
     def check(self, value, path):
         if value < self.min_value:
-            raise Invalid(path, 'This value must be smaller than %s.'
-                                % self.max_value)
+            raise Invalid(path, 'This value must be smaller than %s.' % self.max_value)
 
 class Equals(object):
     def __init__(self, value):
@@ -77,8 +75,7 @@ class Equals(object):
 
     def check(self, value, path):
         if value != self.value:
-            raise Invalid(path, 'This value must be equal to %s.'
-                                % self.value)
+            raise Invalid(path, 'This value must be equal to %r.' % self.value)
 
 class In(object):
     def __init__(self, choice):
@@ -87,7 +84,7 @@ class In(object):
     def check(self, value, path):
         if value not in self.choice:
             raise Invalid(path, 'This value must be one of: %s'
-                                % ', '.join(map(unicode, self.choice)))
+                                % ', '.join(map(repr, self.choice)))
 
 email_re = re.compile(
     # dot-atom
@@ -208,14 +205,21 @@ class Dict(NestedSchema):
         else:
             seen = set()
             for key, schema in self.schema.items():
-                if schema.optional and key not in value:
-                    continue
-
-                seen.add(key)
                 try:
+                    if not isinstance(schema, Schema):
+                        seen.add(key)
+                        if key not in value or schema != value[key]:
+                            raise Invalid(path + (key,), 'This value must be equal to %r.'
+                                                         % schema)
+                        result[key] = value[key]
+                        continue
+                    elif schema.optional and key not in value:
+                        continue
+
+                    seen.add(key)
+
                     if key not in value:
-                        raise Invalid(path + (key,), 'The "%s" entry is missing.'
-                                                     % key)
+                        raise Invalid(path + (key,), 'The "%s" entry is missing.' % key)
                     result[key] = schema.convert(value[key], path + (key,))
                 except Invalid as error:
                     errors.append(error)
