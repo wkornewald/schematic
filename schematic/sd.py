@@ -124,8 +124,11 @@ spam_re = re.compile('|'.join((
     r'and I want to share it with you',
     )), re.IGNORECASE)
 
+def should_check_spam(value):
+    return True
+
 class Spam(object):
-    def __init__(self, should_check=lambda value: True):
+    def __init__(self, should_check=should_check_spam):
         self.should_check = should_check
 
     def check(self, value, path):
