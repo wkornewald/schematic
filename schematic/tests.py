@@ -73,13 +73,3 @@ class SchemaTests(TestCase):
         self.assertEqual('', sd.Email(null=True, blank=True).convert(''))
         self.assertEqual(None, sd.Email(null=True, blank=True).convert(None))
         self.assertRaises(sd.Invalid, lambda: sd.Email(blank=True).convert(None))
-
-    def test_spam(self):
-        schema = sd.String(validators=[sd.Spam()])
-        spam = 'Hi, we can increase your rankings.'
-        self.assertRaises(sd.Invalid, lambda: schema.convert(spam))
-        spam = 'Hi, we can increase the ranking of your website.'
-        self.assertRaises(sd.Invalid, lambda: schema.convert(spam))
-        spam = 'In fact, our SEO experts can help you'
-        self.assertRaises(sd.Invalid, lambda: schema.convert(spam))
-        schema.convert('Hi, could you please tell me more about your product?')

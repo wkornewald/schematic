@@ -112,29 +112,6 @@ class EmailValidator(object):
                 return
             raise Invalid(path, 'Enter a valid e-mail address.')
 
-whitespace_re = re.compile(r'\s+')
-spam_re = re.compile('|'.join((
-    r'we can increase ((your|the) )?ranking',
-    r'our experts? in (Search Engine Optimization|SEO)',
-    r'our (Search Engine Optimization|SEO) expert',
-    r'we offer (quality )?(Search Engine Optimization|SEO)',
-    r'the best (Search Engine Optimization|SEO) service',
-    r'our dedicated team of (Search Engine Optimization|SEO) Professionals',
-    r'I have found the best kept secret',
-    r'and I want to share it with you',
-    )), re.IGNORECASE)
-
-def should_check_spam(value):
-    return True
-
-class Spam(object):
-    def __init__(self, should_check=should_check_spam):
-        self.should_check = should_check
-
-    def check(self, value, path):
-        if self.should_check(value) and spam_re.search(whitespace_re.sub(' ', value)):
-            raise Invalid(path, "Sorry, your message looks like spam.")
-
 class Schema(object):
     default_validators = []
 
