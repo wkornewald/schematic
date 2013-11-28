@@ -262,12 +262,13 @@ class IterableSchema(NestedSchema):
                 error = Invalid(path, 'This value must have %d entries.'
                                       % len(self.schema))
                 errors.append(error)
-            for index, subvalue in enumerate(value):
-                schema = self.schema[index]
-                try:
-                    result.append(schema.convert(subvalue, path + (index,)))
-                except Invalid as error:
-                    errors.append(error)
+            else:
+                for index, subvalue in enumerate(value):
+                    schema = self.schema[index]
+                    try:
+                        result.append(schema.convert(subvalue, path + (index,)))
+                    except Invalid as error:
+                        errors.append(error)
         else:
             for index, subvalue in enumerate(value):
                 try:
