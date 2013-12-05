@@ -16,7 +16,7 @@ class Invalid(Exception):
         return str(self)
 
     def __str__(self):
-        return force_str(unicode(self))
+        return force_str(self.__unicode__())
 
     def __unicode__(self):
         result = []
