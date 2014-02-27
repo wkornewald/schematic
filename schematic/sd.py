@@ -386,6 +386,9 @@ class Time(Schema):
 class Email(String):
     default_validators = [MaxLength(254), EmailValidator()]
 
+    def _convert(self, value, path):
+        return value.lower()
+
 DATETIME_INPUT_FORMATS = (
     # ISO 8601
     '%Y-%m-%dT%H:%M:%S.%f',  # '2006-10-25T14:30:59.123456'
