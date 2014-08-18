@@ -310,7 +310,7 @@ class String(Schema):
 
     def convert(self, value, path=()):
         # Check for blank
-        if self.strip_whitespace and value:
+        if self.strip_whitespace and isinstance(value, basestring) and value:
             value = value.strip()
         if value == '':
             if self.blank:
