@@ -303,12 +303,15 @@ class String(Schema):
     # Let's wrap the converter in a list, so it won't become a method.
     _converters = [force_unicode]
 
-    def __init__(self, blank=False, **kwargs):
+    def __init__(self, blank=False, strip_whitespace=True, **kwargs):
         super(String, self).__init__(**kwargs)
         self.blank = blank
+        self.strip_whitespace = strip_whitespace
 
     def convert(self, value, path=()):
         # Check for blank
+        if self.strip_whitespace and value:
+            value = value.strip()
         if value == '':
             if self.blank:
                 return value
