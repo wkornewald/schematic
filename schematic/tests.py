@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+from __future__ import absolute_import, division, print_function, unicode_literals
 from . import sd
 from unittest import TestCase
 
@@ -25,8 +27,9 @@ class SchemaTests(TestCase):
     one_of = sd.OneOf([(lambda x: isinstance(x, dict), person),
                        (lambda x: True, int_set)])
 
-    def test_empty_string_to_None(self):
+    def test_empty_string(self):
         self.assertEqual(None, sd.String(null=True).convert(''))
+        self.assertEqual('', sd.String(blank=True).convert(''))
 
     def test_person(self):
         self.assertEqual(self.person.convert(self.sample_person),

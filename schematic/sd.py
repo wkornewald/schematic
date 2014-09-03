@@ -296,13 +296,13 @@ class Set(IterableSchema):
 
 class Generic(Schema):
     def _convert(self, value, path):
-        if isinstance(value, str):
+        if not isinstance(value, unicode):
             value = value.decode('utf-8')
         return value
 
 class String(Schema):
     # Let's wrap the converter in a list, so it won't become a method.
-    _converters = [(lambda x: x.decode('utf-8') if isinstance(x, str) else unicode(x))]
+    _converters = [(lambda x: x if isinstance(x, unicode) else (str(x).decode('utf-8')))]
 
     def __init__(self, blank=False, strip_whitespace=True, **kwargs):
         super(String, self).__init__(**kwargs)
