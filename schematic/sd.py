@@ -1,5 +1,6 @@
+# -*- coding: utf-8 -*-
+from __future__ import absolute_import, division, print_function, unicode_literals
 from datetime import datetime, date, time
-from pyutils.encoding import force_str, force_unicode
 from time import strptime
 import re
 
@@ -16,7 +17,7 @@ class Invalid(Exception):
         return str(self)
 
     def __str__(self):
-        return force_str(self.__unicode__())
+        return self.__unicode__().encode('utf-8')
 
     def __unicode__(self):
         result = []
@@ -33,7 +34,7 @@ class Invalid(Exception):
         return '\n' + '\n'.join(result)
 
     def flattened(self):
-        return {'.'.join(map(force_unicode, path)): submessages
+        return {'.'.join(map(unicode, path)): submessages
                 for path, submessages in self.messages.items()}
 
     def add(self, errors):
@@ -296,12 +297,12 @@ class Set(IterableSchema):
 class Generic(Schema):
     def _convert(self, value, path):
         if isinstance(value, str):
-            value = force_unicode(value)
+            value = value.decode('utf-8')
         return value
 
 class String(Schema):
     # Let's wrap the converter in a list, so it won't become a method.
-    _converters = [force_unicode]
+    _converters = [(lambda x: x.decode('utf-8') if isinstance(x, str) else unicode(x))]
 
     def __init__(self, blank=False, strip_whitespace=True, **kwargs):
         super(String, self).__init__(**kwargs)
@@ -326,7 +327,7 @@ class String(Schema):
         return value
 
 class Blob(String):
-    _converters = [force_str]
+    _converters = [(lambda x: x.encode('utf-8') if isinstance(x, unicode) else str(x))]
 
 class Number(Schema):
     # Let's wrap the converter in a list, so it won't become a method.
@@ -409,9 +410,9 @@ DATETIME_INPUT_FORMATS = (
 )
 
 def parse_datetime(value, path):
-    for format in DATETIME_INPUT_FORMATS:
+    for spec in DATETIME_INPUT_FORMATS:
         try:
-            return datetime(*strptime(value, format)[:6])
+            return datetime(*strptime(value, spec)[:6])
         except ValueError:
             continue
     raise Invalid(path, 'Please enter a valid date/time.')
@@ -422,9 +423,9 @@ DATE_INPUT_FORMATS = (
 )
 
 def parse_date(value, path):
-    for format in DATE_INPUT_FORMATS:
+    for spec in DATE_INPUT_FORMATS:
         try:
-            return date(*strptime(value, format)[:3])
+            return date(*strptime(value, spec)[:3])
         except ValueError:
             continue
     raise Invalid(path, 'Please enter a valid date.')
@@ -435,9 +436,9 @@ TIME_INPUT_FORMATS = (
 )
 
 def parse_time(value, path):
-    for format in TIME_INPUT_FORMATS:
+    for spec in TIME_INPUT_FORMATS:
         try:
-            return time(*strptime(value, format)[3:6])
+            return time(*strptime(value, spec)[3:6])
         except ValueError:
             continue
     raise Invalid(path, 'Please enter a valid time.')
