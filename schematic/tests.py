@@ -76,3 +76,13 @@ class SchemaTests(TestCase):
         self.assertEqual('', sd.Email(null=True, blank=True).convert(''))
         self.assertEqual(None, sd.Email(null=True, blank=True).convert(None))
         self.assertRaises(sd.Invalid, lambda: sd.Email(blank=True).convert(None))
+
+    def test_partial_dict(self):
+        value = {'a': 1, 'b': 1}
+        schema = sd.Dict({'a': sd.Int()}, ignore_rest=True)
+        self.assertEqual({k: value[k] for k in schema.schema}, schema.convert(value))
+
+    def test_partial_list(self):
+        value = [1, 'a', 2]
+        schema = sd.List([sd.Int(), sd.String()], ignore_rest=True)
+        self.assertEqual(value[:len(schema.schema)], schema.convert(value))

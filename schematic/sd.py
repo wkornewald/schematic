@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function, unicode_literals
 from datetime import datetime, date, time
+from future.builtins import super
+from itertools import islice
 from time import strptime
 import re
 
@@ -150,7 +152,7 @@ class Schema(object):
 class OneOf(Schema):
     def __init__(self, choice=(), **kwargs):
         self.choice = list(choice)
-        super(OneOf, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
     def _convert(self, value, path):
         for schema in self.choice:
@@ -170,9 +172,10 @@ class OneOf(Schema):
         raise Invalid(path, "This value doesn't match any acceptable schema.")
 
 class NestedSchema(Schema):
-    def __init__(self, schema=None, **kwargs):
+    def __init__(self, schema=None, ignore_rest=False, **kwargs):
         self.schema = schema
-        super(NestedSchema, self).__init__(**kwargs)
+        self.ignore_rest = ignore_rest
+        super().__init__(**kwargs)
 
 class Dict(NestedSchema):
     def _convert(self, value, path):
@@ -187,7 +190,7 @@ class Dict(NestedSchema):
         # We support two modes of operation.
         # a) Only the type of the key and the value are specified. Any keys are accepted.
         #    In this case, self.schema is a tuple.
-        # b) The complete set of allowed keys is specified.
+        # b) The complete set of allowed keys is specified (or incomplete if ignore_rest).
         #    In this case self.schema is a dict.
         if isinstance(self.schema, (tuple, list)):
             key_schema, value_schema = self.schema
@@ -226,9 +229,11 @@ class Dict(NestedSchema):
                     errors.append(error)
 
             error = None
-            non_converted = set(value) - seen
-            if non_converted:
-                error = Invalid(path, 'Unconverted values: %s' % ', '.join(non_converted))
+            if not self.ignore_rest:
+                non_converted = set(value) - seen
+                if non_converted:
+                    error = Invalid(path,
+                                    'Unconverted values: ' + ', '.join(non_converted))
             if errors:
                 if not error:
                     error = Invalid(path)
@@ -259,12 +264,13 @@ class IterableSchema(NestedSchema):
         # b) All entries have the same schema and the length of the value doesn't matter.
         #    In this case self.schema is a schema instance.
         if isinstance(self.schema, (tuple, list)):
-            if len(value) != len(self.schema):
+            check_value = value[:len(self.schema)] if self.ignore_rest else value
+            if len(check_value) != len(self.schema):
                 error = Invalid(path, 'This value must have %d entries.'
                                       % len(self.schema))
                 errors.append(error)
             else:
-                for index, subvalue in enumerate(value):
+                for index, subvalue in enumerate(check_value):
                     schema = self.schema[index]
                     try:
                         result.append(schema.convert(subvalue, path + (index,)))
@@ -305,7 +311,7 @@ class String(Schema):
     _converters = [(lambda x: x if isinstance(x, unicode) else (str(x).decode('utf-8')))]
 
     def __init__(self, blank=False, strip_whitespace=True, **kwargs):
-        super(String, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.blank = blank
         self.strip_whitespace = strip_whitespace
 
@@ -319,7 +325,7 @@ class String(Schema):
             if self.null:
                 return None
             raise Invalid(path, 'This value is required.')
-        return super(String, self).convert(value, path)
+        return super().convert(value, path)
 
     def _convert(self, value, path):
         for converter in self._converters:
