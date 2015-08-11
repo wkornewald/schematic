@@ -52,33 +52,45 @@ class MaxLength(object):
         self.max_length = max_length
 
     def check(self, value, path):
-        if len(value) > self.max_length:
+        max_length = self.max_length
+        if callable(max_length):
+            max_length = max_length()
+        if len(value) > max_length:
             raise Invalid(path, 'Ensure this value has at most %d characters '
-                                '(it has %d).' % (self.max_length, len(value)))
+                                '(it has %d).' % (max_length, len(value)))
 
 class MinValue(object):
     def __init__(self, min_value):
         self.min_value = min_value
 
     def check(self, value, path):
-        if value < self.min_value:
-            raise Invalid(path, 'This value must be larger than %s.' % self.min_value)
+        min_value = self.min_value
+        if callable(min_value):
+            min_value = min_value()
+        if value < min_value:
+            raise Invalid(path, 'This value must be larger than %s.' % min_value)
 
 class MaxValue(object):
     def __init__(self, max_value):
         self.max_value = max_value
 
     def check(self, value, path):
-        if value < self.min_value:
-            raise Invalid(path, 'This value must be smaller than %s.' % self.max_value)
+        max_value = self.max_value
+        if callable(max_value):
+            max_value = max_value()
+        if value > max_value:
+            raise Invalid(path, 'This value must be smaller than %s.' % max_value)
 
 class Equals(object):
     def __init__(self, value):
         self.value = value
 
     def check(self, value, path):
-        if value != self.value:
-            raise Invalid(path, 'This value must be equal to %r.' % self.value)
+        _value = self.value
+        if callable(_value):
+            _value = _value()
+        if value != _value:
+            raise Invalid(path, 'This value must be equal to %r.' % value)
 
 class In(object):
     def __init__(self, choice):
