@@ -90,7 +90,7 @@ class Equals(object):
         if callable(_value):
             _value = _value()
         if value != _value:
-            raise Invalid(path, 'This value must be equal to %r.' % value)
+            raise Invalid(path, 'This value must be equal to %r.' % _value)
 
 class In(object):
     def __init__(self, choice):
