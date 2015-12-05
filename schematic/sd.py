@@ -2,9 +2,12 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 from datetime import datetime, date, time
 from future.builtins import super
-from itertools import islice
-from time import strptime
 import re
+
+try:
+    from pytz import utc as UTC
+except:
+    UTC = None
 
 class Invalid(Exception):
     def __init__(self, path=(), messages=(), children=()):
@@ -413,6 +416,7 @@ class Email(String):
 
 DATETIME_INPUT_FORMATS = (
     # ISO 8601
+    '%Y-%m-%dT%H:%M:%S.%fZ', # '2006-10-25T14:30:59.123456Z'
     '%Y-%m-%dT%H:%M:%S.%f',  # '2006-10-25T14:30:59.123456'
     '%Y-%m-%dT%H:%M:%S',     # '2006-10-25T14:30:59'
 
@@ -430,7 +434,7 @@ DATETIME_INPUT_FORMATS = (
 def parse_datetime(value, path):
     for spec in DATETIME_INPUT_FORMATS:
         try:
-            return datetime(*strptime(value, spec)[:6])
+            return datetime.strptime(value, spec).replace(tzinfo=UTC)
         except ValueError:
             continue
     raise Invalid(path, 'Please enter a valid date/time.')
@@ -443,7 +447,7 @@ DATE_INPUT_FORMATS = (
 def parse_date(value, path):
     for spec in DATE_INPUT_FORMATS:
         try:
-            return date(*strptime(value, spec)[:3])
+            return datetime.strptime(value, spec).date()
         except ValueError:
             continue
     raise Invalid(path, 'Please enter a valid date.')
@@ -456,7 +460,7 @@ TIME_INPUT_FORMATS = (
 def parse_time(value, path):
     for spec in TIME_INPUT_FORMATS:
         try:
-            return time(*strptime(value, spec)[3:6])
+            return datetime.strptime(value, spec).time()
         except ValueError:
             continue
     raise Invalid(path, 'Please enter a valid time.')
