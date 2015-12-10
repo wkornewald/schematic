@@ -9,14 +9,16 @@ try:
 except:
     UTC = None
 
+_BAD_VALUE = object()
 class Invalid(Exception):
-    def __init__(self, path=(), messages=(), children=()):
+    def __init__(self, path=(), messages=(), children=(), bad_value=_BAD_VALUE):
         if not isinstance(messages, (list, tuple)):
             messages = [messages]
         self.messages = {}
         if messages:
             self.messages[path] = list(messages)
         self.add(children)
+        self.bad_value = bad_value
 
     def __repr__(self):
         return str(self)
@@ -34,6 +36,8 @@ class Invalid(Exception):
                 else:
                     result.append(message.rjust(len(prefix)))
 
+        if self.bad_value is not _BAD_VALUE:
+            result.append('\nOriginal value: {!r}'.format(self.bad_value))
         if len(result) == 1:
             return result[0]
         return '\n' + '\n'.join(result)
@@ -60,7 +64,8 @@ class MaxLength(object):
             max_length = max_length()
         if len(value) > max_length:
             raise Invalid(path, 'Ensure this value has at most %d characters '
-                                '(it has %d).' % (max_length, len(value)))
+                                '(it has %d).' % (max_length, len(value)),
+                          bad_value=value)
 
 class MinValue(object):
     def __init__(self, min_value):
@@ -71,7 +76,8 @@ class MinValue(object):
         if callable(min_value):
             min_value = min_value()
         if value < min_value:
-            raise Invalid(path, 'This value must be larger than %s.' % min_value)
+            raise Invalid(path, 'This value must be larger than %s.' % min_value,
+                          bad_value=value)
 
 class MaxValue(object):
     def __init__(self, max_value):
@@ -82,7 +88,8 @@ class MaxValue(object):
         if callable(max_value):
             max_value = max_value()
         if value > max_value:
-            raise Invalid(path, 'This value must be smaller than %s.' % max_value)
+            raise Invalid(path, 'This value must be smaller than %s.' % max_value,
+                          bad_value=value)
 
 class Equals(object):
     def __init__(self, value):
@@ -93,7 +100,8 @@ class Equals(object):
         if callable(_value):
             _value = _value()
         if value != _value:
-            raise Invalid(path, 'This value must be equal to %r.' % _value)
+            raise Invalid(path, 'This value must be equal to %r.' % _value,
+                          bad_value=value)
 
 class In(object):
     def __init__(self, choice):
@@ -102,7 +110,8 @@ class In(object):
     def check(self, value, path):
         if value not in self.choice:
             raise Invalid(path, 'This value must be one of: %s'
-                                % ', '.join(map(repr, self.choice)))
+                                % ', '.join(map(repr, self.choice)),
+                          bad_value=value)
 
 email_re = re.compile(
     # dot-atom
@@ -117,6 +126,7 @@ email_re = re.compile(
 
 class EmailValidator(object):
     def check(self, value, path):
+        orig_value = value
         if not email_re.match(value):
             # Trivial case failed. Try for possible IDN domain-part
             if value and u'@' in value:
@@ -128,7 +138,8 @@ class EmailValidator(object):
                 value = u'@'.join(parts)
             if email_re.match(value):
                 return
-            raise Invalid(path, 'Enter a valid e-mail address.')
+            raise Invalid(path, 'Enter a valid e-mail address.',
+                          bad_value=orig_value)
 
 class Schema(object):
     default_validators = []
@@ -158,7 +169,7 @@ class Schema(object):
             except Invalid as error:
                 errors.append(error)
         if errors:
-            raise Invalid(path, children=errors)
+            raise Invalid(path, children=errors, bad_value=value)
         return value
 
     def _convert(self, value, path=()):
@@ -184,7 +195,8 @@ class OneOf(Schema):
                     return schema.convert(value, path)
                 except Invalid:
                     pass
-        raise Invalid(path, "This value doesn't match any acceptable schema.")
+        raise Invalid(path, "This value doesn't match any acceptable schema.",
+                      bad_value=value)
 
 class NestedSchema(Schema):
     def __init__(self, schema=None, ignore_rest=False, **kwargs):
@@ -195,7 +207,7 @@ class NestedSchema(Schema):
 class Dict(NestedSchema):
     def _convert(self, value, path):
         if not isinstance(value, dict):
-            raise Invalid(path, 'This value must be a dict.')
+            raise Invalid(path, 'This value must be a dict.', bad_value=value)
 
         if self.schema is None:
             return dict(value)
@@ -209,18 +221,18 @@ class Dict(NestedSchema):
         #    In this case self.schema is a dict.
         if isinstance(self.schema, (tuple, list)):
             key_schema, value_schema = self.schema
-            for key, value in value.items():
+            for key, val in value.items():
                 try:
                     result_key = key_schema.convert(key, path + (key,))
                 except Invalid as error:
                     errors.append(error)
                 try:
-                    result[result_key] = value_schema.convert(value, path + (key,))
+                    result[result_key] = value_schema.convert(val, path + (key,))
                 except Invalid as error:
                     errors.append(error)
 
                 if errors:
-                    raise Invalid(path, children=errors)
+                    raise Invalid(path, children=errors, bad_value=value)
         else:
             seen = set()
             for key, schema in self.schema.items():
@@ -248,10 +260,11 @@ class Dict(NestedSchema):
                 non_converted = set(value) - seen
                 if non_converted:
                     error = Invalid(path,
-                                    'Unconverted values: ' + ', '.join(non_converted))
+                                    'Unconverted values: ' + ', '.join(non_converted),
+                                    bad_value=value)
             if errors:
                 if not error:
-                    error = Invalid(path)
+                    error = Invalid(path, bad_value=value)
                 error.add(errors)
             if error is not None:
                 raise error
@@ -264,7 +277,7 @@ class IterableSchema(NestedSchema):
 
     def _convert(self, value, path):
         if not hasattr(value, '__iter__') or isinstance(value, basestring):
-            raise Invalid(path, self._type_error)
+            raise Invalid(path, self._type_error, bad_value=value)
 
         if self.schema is None:
             return self._type(value)
@@ -282,7 +295,8 @@ class IterableSchema(NestedSchema):
             check_value = value[:len(self.schema)] if self.ignore_rest else value
             if len(check_value) != len(self.schema):
                 error = Invalid(path, 'This value must have %d entries.'
-                                      % len(self.schema))
+                                      % len(self.schema),
+                                bad_value=value)
                 errors.append(error)
             else:
                 for index, subvalue in enumerate(check_value):
@@ -299,7 +313,7 @@ class IterableSchema(NestedSchema):
                     errors.append(error)
 
         if errors:
-            raise Invalid(path, children=errors)
+            raise Invalid(path, children=errors, bad_value=value)
 
         return self._type(result)
 
@@ -437,7 +451,7 @@ def parse_datetime(value, path):
             return datetime.strptime(value, spec).replace(tzinfo=UTC)
         except ValueError:
             continue
-    raise Invalid(path, 'Please enter a valid date/time.')
+    raise Invalid(path, 'Please enter a valid date/time.', bad_value=value)
 
 DATE_INPUT_FORMATS = (
     '%Y-%m-%d', '%m/%d/%Y', '%m/%d/%y',  # '2006-10-25', '10/25/2006', '10/25/06'
@@ -450,7 +464,7 @@ def parse_date(value, path):
             return datetime.strptime(value, spec).date()
         except ValueError:
             continue
-    raise Invalid(path, 'Please enter a valid date.')
+    raise Invalid(path, 'Please enter a valid date.', bad_value=value)
 
 TIME_INPUT_FORMATS = (
     '%H:%M:%S',     # '14:30:59'
@@ -463,4 +477,4 @@ def parse_time(value, path):
             return datetime.strptime(value, spec).time()
         except ValueError:
             continue
-    raise Invalid(path, 'Please enter a valid time.')
+    raise Invalid(path, 'Please enter a valid time.', bad_value=value)
