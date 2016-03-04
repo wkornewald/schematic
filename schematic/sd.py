@@ -395,9 +395,13 @@ class Bool(Schema):
         return bool(value)
 
 class DateTime(Schema):
+    def __init__(self, timezone_aware=True, **kwargs):
+        self.timezone_aware = timezone_aware
+        super().__init__(**kwargs)
+
     def _convert(self, value, path):
         if isinstance(value, basestring):
-            return parse_datetime(value, path)
+            return parse_datetime(value, path, self.timezone_aware)
         if not isinstance(value, datetime):
             raise Invalid(path, 'Please provide a datetime object.')
         return value
@@ -445,10 +449,13 @@ DATETIME_INPUT_FORMATS = (
     '%d.%m.%Y %H:%M',        # '25.10.2006 14:30'
 )
 
-def parse_datetime(value, path):
+def parse_datetime(value, path, timezone_aware=True):
     for spec in DATETIME_INPUT_FORMATS:
         try:
-            return datetime.strptime(value, spec).replace(tzinfo=UTC)
+            _date = datetime.strptime(value, spec)
+            if timezone_aware:
+                _date = date.replace(tzinfo=UTC)
+            return _date
         except ValueError:
             continue
     raise Invalid(path, 'Please enter a valid date/time.', bad_value=value)
