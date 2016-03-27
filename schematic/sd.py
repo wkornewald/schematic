@@ -11,12 +11,14 @@ except:
 
 _BAD_VALUE = object()
 class Invalid(Exception):
-    def __init__(self, path=(), messages=(), children=(), bad_value=_BAD_VALUE):
-        if not isinstance(messages, (list, tuple)):
-            messages = [messages]
-        self.messages = {}
-        if messages:
-            self.messages[path] = list(messages)
+    def __init__(self, raisor, path=(), message='', children=(), bad_value=_BAD_VALUE):
+        self.raisor = raisor
+        self.message = message
+        if not isinstance(children, (list, tuple)):
+            children = [children]
+        self.children = {}
+        if message:
+            self.children[path] = [self]
         self.add(children)
         self.bad_value = bad_value
 
@@ -28,13 +30,17 @@ class Invalid(Exception):
 
     def __unicode__(self):
         result = []
-        for path, messages in self.flattened().items():
+        for path, children in self.flattened().items():
             prefix = path + ': ' if path else ''
-            for index, message in enumerate(messages):
+            index = 0
+            for child in children:
+                if not child.message:
+                    continue
                 if index == 0:
-                    result.append(prefix + message)
+                    result.append(prefix + child.message)
                 else:
-                    result.append(message.rjust(len(prefix)))
+                    result.append(child.message.rjust(len(prefix)))
+                    index += 1
 
         if self.bad_value is not _BAD_VALUE:
             result.append('\nOriginal value: {!r}'.format(self.bad_value))
@@ -43,65 +49,95 @@ class Invalid(Exception):
         return '\n' + '\n'.join(result)
 
     def flattened(self):
-        return {'.'.join(map(unicode, path)): submessages
-                for path, submessages in self.messages.items()}
+        return {'.'.join(map(unicode, path)): children for path, children in self.children.items()}
 
     def add(self, errors):
         if not hasattr(errors, '__iter__'):
             errors = (errors,)
 
         for error in errors:
-            for path, messages in error.messages.items():
-                self.messages.setdefault(path, []).extend(messages)
+            for path, children in error.children.items():
+                self.children.setdefault(path, []).extend(children)
+
+    def filter(self, filter_func):
+        return filter(filter_func, reduce(lambda x, y: x + y, self.children.values(), []))
+
+class MaxLengthError(Invalid):
+    pass
 
 class MaxLength(object):
     def __init__(self, max_length):
         self.max_length = max_length
 
     def check(self, value, path):
+        max_length = self.get_value()
+        if len(value) > max_length:
+            raise MaxLengthError(self, path, 'Ensure this value has at most %d characters '
+                                             '(it has %d).' % (max_length, len(value)),
+                                 bad_value=value)
+
+    def get_value(self):
         max_length = self.max_length
         if callable(max_length):
             max_length = max_length()
-        if len(value) > max_length:
-            raise Invalid(path, 'Ensure this value has at most %d characters '
-                                '(it has %d).' % (max_length, len(value)),
-                          bad_value=value)
+        return max_length
+
+class MinValueError(Invalid):
+    pass
 
 class MinValue(object):
     def __init__(self, min_value):
         self.min_value = min_value
 
     def check(self, value, path):
+        min_value = self.get_value()
+        if value < min_value:
+            raise MinValueError(self, path, 'This value must be larger than %s.' % min_value, bad_value=value)
+
+    def get_value(self):
         min_value = self.min_value
         if callable(min_value):
             min_value = min_value()
-        if value < min_value:
-            raise Invalid(path, 'This value must be larger than %s.' % min_value,
-                          bad_value=value)
+        return min_value
+
+class MaxValueError(Invalid):
+    pass
 
 class MaxValue(object):
     def __init__(self, max_value):
         self.max_value = max_value
 
     def check(self, value, path):
+        max_value = self.get_value()
+        if value > max_value:
+            raise MaxValueError(self, path, 'This value must be smaller than %s.' % max_value, bad_value=value)
+
+    def get_value(self):
         max_value = self.max_value
         if callable(max_value):
             max_value = max_value()
-        if value > max_value:
-            raise Invalid(path, 'This value must be smaller than %s.' % max_value,
-                          bad_value=value)
+        return max_value
+
+class EqualsError(Invalid):
+    pass
 
 class Equals(object):
     def __init__(self, value):
         self.value = value
 
     def check(self, value, path):
-        _value = self.value
-        if callable(_value):
-            _value = _value()
+        _value = self.get_value()
         if value != _value:
-            raise Invalid(path, 'This value must be equal to %r.' % _value,
-                          bad_value=value)
+            raise EqualsError(self, path, 'This value must be equal to %r.' % _value, bad_value=value)
+
+    def get_value(self):
+        value = self.value
+        if callable(value):
+            _value = value()
+        return value
+
+class InError(Invalid):
+    pass
 
 class In(object):
     def __init__(self, choice):
@@ -109,9 +145,11 @@ class In(object):
 
     def check(self, value, path):
         if value not in self.choice:
-            raise Invalid(path, 'This value must be one of: %s'
-                                % ', '.join(map(repr, self.choice)),
+            raise InError(self, path, 'This value must be one of: %s' % ', '.join(map(repr, self.choice)),
                           bad_value=value)
+
+    def get_value(self):
+        return self.choice
 
 email_re = re.compile(
     # dot-atom
@@ -123,6 +161,9 @@ email_re = re.compile(
     # literal form, ipv4 address (SMTP 4.1.3)
     r'|\[(25[0-5]|2[0-4]\d|[0-1]?\d?\d)(\.(25[0-5]|2[0-4]\d|[0-1]?\d?\d)){3}\]$',
     re.IGNORECASE)
+
+class EmailValidatorError(Invalid):
+    pass
 
 class EmailValidator(object):
     def check(self, value, path):
@@ -138,8 +179,7 @@ class EmailValidator(object):
                 value = u'@'.join(parts)
             if email_re.match(value):
                 return
-            raise Invalid(path, 'Enter a valid e-mail address.',
-                          bad_value=orig_value)
+            raise EmailValidatorError(self, path, 'Enter a valid e-mail address.', bad_value=orig_value)
 
 class Schema(object):
     default_validators = []
@@ -158,7 +198,7 @@ class Schema(object):
 
         if value is None:
             if not self.null:
-                raise Invalid(path, 'This value is required.')
+                raise Invalid(self, path, 'This value is required.')
             return None
         value = self._convert(value, path)
 
@@ -169,11 +209,14 @@ class Schema(object):
             except Invalid as error:
                 errors.append(error)
         if errors:
-            raise Invalid(path, children=errors, bad_value=value)
+            raise Invalid(self, path, children=errors, bad_value=value)
         return value
 
     def _convert(self, value, path=()):
         raise NotImplementedError()
+
+    def get_validators(self, validator_type):
+        return filter(lambda validator: isinstance(validator, validator_type), self.validators)
 
 class OneOf(Schema):
     def __init__(self, choice=(), **kwargs):
@@ -195,8 +238,7 @@ class OneOf(Schema):
                     return schema.convert(value, path)
                 except Invalid:
                     pass
-        raise Invalid(path, "This value doesn't match any acceptable schema.",
-                      bad_value=value)
+        raise Invalid(self, path, "This value doesn't match any acceptable schema.", bad_value=value)
 
 class NestedSchema(Schema):
     def __init__(self, schema=None, ignore_rest=False, **kwargs):
@@ -204,10 +246,16 @@ class NestedSchema(Schema):
         self.ignore_rest = ignore_rest
         super().__init__(**kwargs)
 
+class MissingEntry(Invalid):
+    pass
+
+class UnconvertedValues(Invalid):
+    pass
+
 class Dict(NestedSchema):
     def _convert(self, value, path):
         if not isinstance(value, dict):
-            raise Invalid(path, 'This value must be a dict.', bad_value=value)
+            raise Invalid(self, path, 'This value must be a dict.', bad_value=value)
 
         if self.schema is None:
             return dict(value)
@@ -232,7 +280,7 @@ class Dict(NestedSchema):
                     errors.append(error)
 
                 if errors:
-                    raise Invalid(path, children=errors, bad_value=value)
+                    raise Invalid(self, path, children=errors, bad_value=value)
         else:
             seen = set()
             for key, schema in self.schema.items():
@@ -240,8 +288,7 @@ class Dict(NestedSchema):
                     if not isinstance(schema, Schema):
                         seen.add(key)
                         if key not in value or schema != value[key]:
-                            raise Invalid(path + (key,), 'This value must be equal to %r.'
-                                                         % schema)
+                            raise Invalid(self, path + (key,), 'This value must be equal to %r.' % schema)
                         result[key] = value[key]
                         continue
                     elif schema.optional and key not in value:
@@ -250,7 +297,7 @@ class Dict(NestedSchema):
                     seen.add(key)
 
                     if key not in value:
-                        raise Invalid(path + (key,), 'The "%s" entry is missing.' % key)
+                        raise MissingEntry(self, path + (key,), 'The "%s" entry is missing.' % key)
                     result[key] = schema.convert(value[key], path + (key,))
                 except Invalid as error:
                     errors.append(error)
@@ -259,12 +306,11 @@ class Dict(NestedSchema):
             if not self.ignore_rest:
                 non_converted = set(value) - seen
                 if non_converted:
-                    error = Invalid(path,
-                                    'Unconverted values: ' + ', '.join(non_converted),
-                                    bad_value=value)
+                    error = UnconvertedValues(self, path, 'Unconverted values: ' + ', '.join(non_converted),
+                                              bad_value=value)
             if errors:
                 if not error:
-                    error = Invalid(path, bad_value=value)
+                    error = Invalid(self, path, bad_value=value)
                 error.add(errors)
             if error is not None:
                 raise error
@@ -277,7 +323,7 @@ class IterableSchema(NestedSchema):
 
     def _convert(self, value, path):
         if not hasattr(value, '__iter__') or isinstance(value, basestring):
-            raise Invalid(path, self._type_error, bad_value=value)
+            raise Invalid(self, path, self._type_error, bad_value=value)
 
         if self.schema is None:
             return self._type(value)
@@ -294,9 +340,7 @@ class IterableSchema(NestedSchema):
         if isinstance(self.schema, (tuple, list)):
             check_value = value[:len(self.schema)] if self.ignore_rest else value
             if len(check_value) != len(self.schema):
-                error = Invalid(path, 'This value must have %d entries.'
-                                      % len(self.schema),
-                                bad_value=value)
+                error = Invalid(self, path, 'This value must have %d entries.' % len(self.schema), bad_value=value)
                 errors.append(error)
             else:
                 for index, subvalue in enumerate(check_value):
@@ -313,7 +357,7 @@ class IterableSchema(NestedSchema):
                     errors.append(error)
 
         if errors:
-            raise Invalid(path, children=errors, bad_value=value)
+            raise Invalid(self, path, children=errors, bad_value=value)
 
         return self._type(result)
 
@@ -353,7 +397,7 @@ class String(Schema):
                 return value
             if self.null:
                 return None
-            raise Invalid(path, 'This value is required.')
+            raise Invalid(self, path, 'This value is required.')
         return super().convert(value, path)
 
     def _convert(self, value, path):
@@ -375,7 +419,7 @@ class Number(Schema):
                 value = converter(value)
             return value
         except ValueError:
-            raise Invalid(path, self._error)
+            raise Invalid(self, path, self._error)
 
 class Int(Number):
     _converters = [int]
@@ -401,29 +445,29 @@ class DateTime(Schema):
 
     def _convert(self, value, path):
         if isinstance(value, basestring):
-            return parse_datetime(value, path, self.timezone_aware)
+            return parse_datetime(self, value, path, self.timezone_aware)
         if not isinstance(value, datetime):
-            raise Invalid(path, 'Please provide a datetime object.')
+            raise Invalid(self, path, 'Please provide a datetime object.')
         return value
 
 class Date(Schema):
     def _convert(self, value, path):
         if isinstance(value, basestring):
-            return parse_date(value, path)
+            return parse_date(self, value, path)
         if isinstance(value, datetime):
             return value.date()
         if not isinstance(value, date):
-            raise Invalid(path, 'Please provide a date object.')
+            raise Invalid(self, path, 'Please provide a date object.')
         return value
 
 class Time(Schema):
     def _convert(self, value, path):
         if isinstance(value, basestring):
-            return parse_time(value, path)
+            return parse_time(self, value, path)
         if isinstance(value, datetime):
             return value.time()
         if not isinstance(value, time):
-            raise Invalid(path, 'Please provide a time object.')
+            raise Invalid(self, path, 'Please provide a time object.')
         return value
 
 class Email(String):
@@ -449,7 +493,7 @@ DATETIME_INPUT_FORMATS = (
     '%d.%m.%Y %H:%M',        # '25.10.2006 14:30'
 )
 
-def parse_datetime(value, path, timezone_aware=True):
+def parse_datetime(schema, value, path, timezone_aware=True):
     for spec in DATETIME_INPUT_FORMATS:
         try:
             _date = datetime.strptime(value, spec)
@@ -458,30 +502,30 @@ def parse_datetime(value, path, timezone_aware=True):
             return _date
         except ValueError:
             continue
-    raise Invalid(path, 'Please enter a valid date/time.', bad_value=value)
+    raise Invalid(schema, path, 'Please enter a valid date/time.', bad_value=value)
 
 DATE_INPUT_FORMATS = (
     '%Y-%m-%d', '%m/%d/%Y', '%m/%d/%y',  # '2006-10-25', '10/25/2006', '10/25/06'
     '%d.%m.%Y', '%d.%m.%y',              # '25.10.2006', '25.10.06'
 )
 
-def parse_date(value, path):
+def parse_date(schema, value, path):
     for spec in DATE_INPUT_FORMATS:
         try:
             return datetime.strptime(value, spec).date()
         except ValueError:
             continue
-    raise Invalid(path, 'Please enter a valid date.', bad_value=value)
+    raise Invalid(schema, path, 'Please enter a valid date.', bad_value=value)
 
 TIME_INPUT_FORMATS = (
     '%H:%M:%S',     # '14:30:59'
     '%H:%M',        # '14:30'
 )
 
-def parse_time(value, path):
+def parse_time(schema, value, path):
     for spec in TIME_INPUT_FORMATS:
         try:
             return datetime.strptime(value, spec).time()
         except ValueError:
             continue
-    raise Invalid(path, 'Please enter a valid time.', bad_value=value)
+    raise Invalid(schema, path, 'Please enter a valid time.', bad_value=value)
