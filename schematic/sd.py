@@ -518,7 +518,7 @@ def parse_datetime(schema, value, path, timezone_aware=True):
         try:
             _date = datetime.strptime(value, spec)
             if timezone_aware:
-                _date = date.replace(tzinfo=UTC)
+                _date = _date.replace(tzinfo=UTC)
             return _date
         except ValueError:
             continue
