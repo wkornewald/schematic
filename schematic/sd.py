@@ -62,6 +62,26 @@ class Invalid(Exception):
     def filter(self, filter_func):
         return filter(filter_func, reduce(lambda x, y: x + y, self.children.values(), []))
 
+class MinLengthError(Invalid):
+    pass
+
+class MinLength(object):
+    def __init__(self, min_length):
+        self.min_length = min_length
+
+    def check(self, value, path):
+        min_length = self.get_value()
+        if len(value) > min_length:
+            raise MinLengthError(self, path, 'Ensure this value has at most %d characters '
+                                             '(it has %d).' % (min_length, len(value)),
+                                 bad_value=value)
+
+    def get_value(self):
+        min_length = self.min_length
+        if callable(min_length):
+            min_length = min_length()
+        return min_length
+
 class MaxLengthError(Invalid):
     pass
 
