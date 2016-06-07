@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function, unicode_literals
 from datetime import datetime, date, time
-from future.builtins import super
+from future.builtins import super, int, str
+from future.utils import python_2_unicode_compatible
 import re
 
 try:
@@ -10,6 +11,8 @@ except:
     UTC = None
 
 _BAD_VALUE = object()
+
+@python_2_unicode_compatible
 class Invalid(Exception):
     def __init__(self, raisor, path=(), message='', children=(), bad_value=_BAD_VALUE):
         self.raisor = raisor
@@ -26,9 +29,6 @@ class Invalid(Exception):
         return str(self)
 
     def __str__(self):
-        return self.__unicode__().encode('utf-8')
-
-    def __unicode__(self):
         result = []
         for path, children in self.flattened().items():
             prefix = path + ': ' if path else ''
@@ -49,7 +49,7 @@ class Invalid(Exception):
         return '\n' + '\n'.join(result)
 
     def flattened(self):
-        return {'.'.join(map(unicode, path)): children for path, children in self.children.items()}
+        return {'.'.join(map(str, path)): children for path, children in self.children.items()}
 
     def add(self, errors):
         if not hasattr(errors, '__iter__'):
@@ -60,7 +60,10 @@ class Invalid(Exception):
                 self.children.setdefault(path, []).extend(children)
 
     def filter(self, filter_func):
-        return filter(filter_func, reduce(lambda x, y: x + y, self.children.values(), []))
+        values = []
+        for value in self.children.values():
+            values.extend(value)
+        return [v for v in values if filter_func(v)]
 
 class MinLengthError(Invalid):
     pass
@@ -236,7 +239,7 @@ class Schema(object):
         raise NotImplementedError()
 
     def get_validators(self, validator_type):
-        return filter(lambda validator: isinstance(validator, validator_type), self.validators)
+        return [v for v in self.validators if isinstance(v, validator_type)]
 
 class OneOf(Schema):
     def __init__(self, choice=(), **kwargs):
@@ -342,7 +345,7 @@ class IterableSchema(NestedSchema):
     _type = None
 
     def _convert(self, value, path):
-        if not hasattr(value, '__iter__') or isinstance(value, basestring):
+        if not hasattr(value, '__iter__') or isinstance(value, str):
             raise Invalid(self, path, self._type_error, bad_value=value)
 
         if self.schema is None:
@@ -395,13 +398,13 @@ class Set(IterableSchema):
 
 class Generic(Schema):
     def _convert(self, value, path):
-        if not isinstance(value, unicode):
+        if not isinstance(value, str):
             value = value.decode('utf-8')
         return value
 
 class String(Schema):
     # Let's wrap the converter in a list, so it won't become a method.
-    _converters = [(lambda x: x if isinstance(x, unicode) else (str(x).decode('utf-8')))]
+    _converters = [(lambda x: x if isinstance(x, str) else (str(x).decode('utf-8')))]
 
     def __init__(self, blank=False, strip_whitespace=True, **kwargs):
         super().__init__(**kwargs)
@@ -410,7 +413,7 @@ class String(Schema):
 
     def convert(self, value, path=()):
         # Check for blank
-        if self.strip_whitespace and isinstance(value, basestring) and value:
+        if self.strip_whitespace and isinstance(value, str) and value:
             value = value.strip()
         if value == '':
             if self.blank:
@@ -426,7 +429,7 @@ class String(Schema):
         return value
 
 class Blob(String):
-    _converters = [(lambda x: x.encode('utf-8') if isinstance(x, unicode) else str(x))]
+    _converters = [(lambda x: x.encode('utf-8') if isinstance(x, str) else str(x))]
 
 class Number(Schema):
     # Let's wrap the converter in a list, so it won't become a method.
@@ -445,16 +448,13 @@ class Int(Number):
     _converters = [int]
     _error = 'This value must be an integer.'
 
-class Long(Int):
-    _converters = [long]
-
 class Float(Number):
     _converters = [float]
     _error = 'This value must be a number.'
 
 class Bool(Schema):
     def _convert(self, value, path):
-        if isinstance(value, basestring):
+        if isinstance(value, str):
             return value.lower() not in ('0', 'false')
         return bool(value)
 
@@ -464,7 +464,7 @@ class DateTime(Schema):
         super().__init__(**kwargs)
 
     def _convert(self, value, path):
-        if isinstance(value, basestring):
+        if isinstance(value, str):
             return parse_datetime(self, value, path, self.timezone_aware)
         if not isinstance(value, datetime):
             raise Invalid(self, path, 'Please provide a datetime object.')
@@ -472,7 +472,7 @@ class DateTime(Schema):
 
 class Date(Schema):
     def _convert(self, value, path):
-        if isinstance(value, basestring):
+        if isinstance(value, str):
             return parse_date(self, value, path)
         if isinstance(value, datetime):
             return value.date()
@@ -482,7 +482,7 @@ class Date(Schema):
 
 class Time(Schema):
     def _convert(self, value, path):
-        if isinstance(value, basestring):
+        if isinstance(value, str):
             return parse_time(self, value, path)
         if isinstance(value, datetime):
             return value.time()
