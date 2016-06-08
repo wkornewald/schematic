@@ -7,7 +7,7 @@ import re
 
 try:
     from pytz import utc as UTC
-except:
+except ImportError:
     UTC = None
 
 _BAD_VALUE = object()
