@@ -1,8 +1,4 @@
-# -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, print_function, unicode_literals
 from datetime import datetime, date, time
-from future.builtins import super, int, str
-from future.utils import python_2_unicode_compatible
 import re
 
 try:
@@ -12,7 +8,6 @@ except ImportError:
 
 _BAD_VALUE = object()
 
-@python_2_unicode_compatible
 class Invalid(Exception):
     def __init__(self, raisor, path=(), message='', children=(), bad_value=_BAD_VALUE):
         self.raisor = raisor
