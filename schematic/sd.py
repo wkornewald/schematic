@@ -199,7 +199,7 @@ class EmailValidator(object):
                 return
             raise EmailValidatorError(self, path, 'Enter a valid e-mail address.', bad_value=orig_value)
 
-class Schema(object):
+class Schema:
     default_validators = []
 
     def __init__(self, null=False, optional=False, validators=None):
@@ -209,7 +209,7 @@ class Schema(object):
         if validators:
             self.validators.extend(validators)
 
-    def convert(self, value, path=()):
+    def convert(self, value, path=(), **kwargs):
         # Forms can only represent empty strings, but not None. Convert empty strings.
         if value == '':
             value = None
@@ -218,7 +218,7 @@ class Schema(object):
             if not self.null:
                 raise Invalid(self, path, 'This value is required.')
             return None
-        value = self._convert(value, path)
+        value = self._convert(value, path, **kwargs)
 
         errors = []
         for validator in self.validators:
@@ -230,7 +230,7 @@ class Schema(object):
             raise Invalid(self, path, children=errors, bad_value=value)
         return value
 
-    def _convert(self, value, path=()):
+    def _convert(self, value, path=(), **kwargs):
         raise NotImplementedError()
 
     def get_validators(self, validator_type):
@@ -241,7 +241,7 @@ class OneOf(Schema):
         self.choice = list(choice)
         super().__init__(**kwargs)
 
-    def _convert(self, value, path):
+    def _convert(self, value, path, **kwargs):
         for schema in self.choice:
             if isinstance(schema, (tuple, list)):
                 checker, schema = schema
@@ -250,10 +250,10 @@ class OneOf(Schema):
                         continue
                 except:
                     continue
-                return schema.convert(value, path)
+                return schema.convert(value, path, **kwargs)
             else:
                 try:
-                    return schema.convert(value, path)
+                    return schema.convert(value, path, **kwargs)
                 except Invalid:
                     pass
         raise Invalid(self, path, "This value doesn't match any acceptable schema.", bad_value=value)
@@ -271,7 +271,7 @@ class UnconvertedValues(Invalid):
     pass
 
 class Dict(NestedSchema):
-    def _convert(self, value, path):
+    def _convert(self, value, path, **kwargs):
         if not isinstance(value, dict):
             raise Invalid(self, path, 'This value must be a dict.', bad_value=value)
 
@@ -289,11 +289,11 @@ class Dict(NestedSchema):
             key_schema, value_schema = self.schema
             for key, val in value.items():
                 try:
-                    result_key = key_schema.convert(key, path + (key,))
+                    result_key = key_schema.convert(key, path + (key,), **kwargs)
                 except Invalid as error:
                     errors.append(error)
                 try:
-                    result[result_key] = value_schema.convert(val, path + (key,))
+                    result[result_key] = value_schema.convert(val, path + (key,), **kwargs)
                 except Invalid as error:
                     errors.append(error)
 
@@ -316,7 +316,7 @@ class Dict(NestedSchema):
 
                     if key not in value:
                         raise MissingEntry(self, path + (key,), 'The "%s" entry is missing.' % key)
-                    result[key] = schema.convert(value[key], path + (key,))
+                    result[key] = schema.convert(value[key], path + (key,), **kwargs)
                 except Invalid as error:
                     errors.append(error)
 
@@ -339,7 +339,7 @@ class IterableSchema(NestedSchema):
     _type_error = None
     _type = None
 
-    def _convert(self, value, path):
+    def _convert(self, value, path, **kwargs):
         if not hasattr(value, '__iter__') or isinstance(value, str):
             raise Invalid(self, path, self._type_error, bad_value=value)
 
@@ -364,13 +364,13 @@ class IterableSchema(NestedSchema):
                 for index, subvalue in enumerate(check_value):
                     schema = self.schema[index]
                     try:
-                        result.append(schema.convert(subvalue, path + (index,)))
+                        result.append(schema.convert(subvalue, path + (index,), **kwargs))
                     except Invalid as error:
                         errors.append(error)
         else:
             for index, subvalue in enumerate(value):
                 try:
-                    result.append(self.schema.convert(subvalue, path + (index,)))
+                    result.append(self.schema.convert(subvalue, path + (index,), **kwargs))
                 except Invalid as error:
                     errors.append(error)
 
@@ -392,7 +392,7 @@ class Set(IterableSchema):
     _type = set
 
 class Generic(Schema):
-    def _convert(self, value, path):
+    def _convert(self, value, path, **kwargs):
         if not isinstance(value, str):
             value = value.decode('utf-8')
         return value
@@ -406,7 +406,7 @@ class String(Schema):
         self.blank = blank
         self.strip_whitespace = strip_whitespace
 
-    def convert(self, value, path=()):
+    def convert(self, value, path=(), **kwargs):
         # Check for blank
         if self.strip_whitespace and isinstance(value, str) and value:
             value = value.strip()
@@ -416,22 +416,22 @@ class String(Schema):
             if self.null:
                 return None
             raise Invalid(self, path, 'This value is required.')
-        return super().convert(value, path)
+        return super().convert(value, path, **kwargs)
 
-    def _convert(self, value, path):
+    def _convert(self, value, path, **kwargs):
         for converter in self._converters:
             value = converter(value)
         return value
 
 class Blob(String):
-    _converters = [(lambda x: x.encode('utf-8') if isinstance(x, str) else str(x))]
+    _converters = [(lambda x: x.encode('utf-8') if isinstance(x, str) else bytes(x))]
 
 class Number(Schema):
     # Let's wrap the converter in a list, so it won't become a method.
     _converters = []
     _error = None
 
-    def _convert(self, value, path):
+    def _convert(self, value, path, **kwargs):
         try:
             for converter in self._converters:
                 value = converter(value)
@@ -448,7 +448,7 @@ class Float(Number):
     _error = 'This value must be a number.'
 
 class Bool(Schema):
-    def _convert(self, value, path):
+    def _convert(self, value, path, **kwargs):
         if isinstance(value, str):
             return value.lower() not in ('0', 'false')
         return bool(value)
@@ -458,7 +458,7 @@ class DateTime(Schema):
         self.timezone_aware = timezone_aware
         super().__init__(**kwargs)
 
-    def _convert(self, value, path):
+    def _convert(self, value, path, **kwargs):
         if isinstance(value, str):
             return parse_datetime(self, value, path, self.timezone_aware)
         if not isinstance(value, datetime):
@@ -466,7 +466,7 @@ class DateTime(Schema):
         return value
 
 class Date(Schema):
-    def _convert(self, value, path):
+    def _convert(self, value, path, **kwargs):
         if isinstance(value, str):
             return parse_date(self, value, path)
         if isinstance(value, datetime):
@@ -476,7 +476,7 @@ class Date(Schema):
         return value
 
 class Time(Schema):
-    def _convert(self, value, path):
+    def _convert(self, value, path, **kwargs):
         if isinstance(value, str):
             return parse_time(self, value, path)
         if isinstance(value, datetime):
@@ -488,7 +488,7 @@ class Time(Schema):
 class Email(String):
     default_validators = [MaxLength(254), EmailValidator()]
 
-    def _convert(self, value, path):
+    def _convert(self, value, path, **kwargs):
         return value.lower()
 
 DATETIME_INPUT_FORMATS = (
@@ -546,3 +546,44 @@ def parse_time(schema, value, path):
         except ValueError:
             continue
     raise Invalid(schema, path, 'Please enter a valid time.', bad_value=value)
+
+FIELD_TYPES_MAPPING = {
+    bool: Bool(),
+    date: Date(),
+    datetime: DateTime(),
+    float: Float(),
+    int: Int(),
+    str: String(),
+    time: Time(),
+}
+
+def _convert_field(kind):
+    if issubclass(kind, tuple) and hasattr(kind, '_field_types'):
+        return NamedTuple(kind)
+    return FIELD_TYPES_MAPPING[kind]
+
+class NamedTuple(Dict):
+    """Schema for a typing.NamedTuple that contains type annotations."""
+
+    def __init__(self, named_tuple):
+        self.named_tuple = named_tuple
+        super().__init__({name: _convert_field(kind)
+                          for name, kind in named_tuple._field_types.items()})
+
+    def _convert(self, value, path, named_tuple_to_dict=False, **kwargs):
+        orig = value
+        if isinstance(value, self.named_tuple):
+            value = value._asdict()
+        try:
+            result_dict = super()._convert(value, path,
+                                           named_tuple_to_dict=named_tuple_to_dict, **kwargs)
+        except Invalid as e:
+            e.bad_value = orig
+            raise e
+        if named_tuple_to_dict:
+            return result_dict
+        return self.named_tuple(**result_dict)
+
+    def to_dict(self, value):
+        assert isinstance(value, self.named_tuple)
+        return self.convert(value, named_tuple_to_dict=True)
