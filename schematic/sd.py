@@ -1,5 +1,6 @@
 from datetime import datetime, date, time
 import re
+import typing
 
 try:
     from pytz import utc as UTC
@@ -560,6 +561,12 @@ FIELD_TYPES_MAPPING = {
 def _convert_field(kind):
     if issubclass(kind, tuple) and hasattr(kind, '_field_types'):
         return NamedTuple(kind)
+    if issubclass(kind, typing.Dict):
+        return Dict([_convert_field(f) for f in kind.__args__])
+    if issubclass(kind, typing.List):
+        return List(_convert_field(kind.__args__[0]))
+    if issubclass(kind, typing.Tuple):
+        return Tuple([_convert_field(f) for f in kind.__args__])
     return FIELD_TYPES_MAPPING[kind]
 
 class NamedTuple(Dict):
