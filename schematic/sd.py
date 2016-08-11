@@ -554,7 +554,7 @@ FIELD_TYPES_MAPPING = {
     datetime: DateTime(),
     float: Float(),
     int: Int(),
-    str: String(),
+    str: String(blank=True),
     time: Time(),
 }
 
