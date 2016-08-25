@@ -550,33 +550,44 @@ def parse_time(schema, value, path):
     raise Invalid(schema, path, 'Please enter a valid time.', bad_value=value)
 
 FIELD_TYPES_MAPPING = {
-    bool: Bool(),
-    date: Date(),
-    datetime: DateTime(),
-    float: Float(),
-    int: Int(),
-    str: String(blank=True),
-    time: Time(),
+    bool: Bool,
+    date: Date,
+    datetime: DateTime,
+    float: Float,
+    int: Int,
+    str: lambda *args, **kwargs: String(*args, blank=True, **kwargs),
+    time: Time,
 }
 
-def _convert_field(kind):
+def from_typing(kind, ignore_rest=False, **kwargs):
     if issubclass(kind, tuple) and hasattr(kind, '_field_types'):
-        return NamedTuple(kind)
+        return NamedTuple(kind, ignore_rest=ignore_rest, **kwargs)
     if issubclass(kind, typing.Dict):
-        return Dict([_convert_field(f) for f in kind.__args__])
+        return Dict([from_typing(f, ignore_rest) for f in kind.__args__],
+                    ignore_rest=ignore_rest)
     if issubclass(kind, typing.List):
-        return List(_convert_field(kind.__args__[0]))
+        return List(from_typing(kind.__args__[0], ignore_rest), **kwargs)
     if issubclass(kind, typing.Tuple):
-        return Tuple([_convert_field(f) for f in kind.__args__])
-    return FIELD_TYPES_MAPPING[kind]
+        return Tuple([from_typing(f, ignore_rest) for f in kind.__args__],
+                     **kwargs)
+    if issubclass(kind, typing.Union):
+        union = kind.__union_set_params__
+        if type(None) in union:
+            kwargs['null'] = True
+            union -= {type(None)}
+        if len(union) == 1:
+            return from_typing(list(union)[0], ignore_rest, **kwargs)
+        return OneOf([from_typing(f, ignore_rest) for f in union], **kwargs)
+    return FIELD_TYPES_MAPPING[kind](**kwargs)
 
 class NamedTuple(Dict):
     """Schema for a typing.NamedTuple that contains type annotations."""
 
-    def __init__(self, named_tuple):
+    def __init__(self, named_tuple, **kwargs):
         self.named_tuple = named_tuple
-        super().__init__({name: _convert_field(kind)
-                          for name, kind in named_tuple._field_types.items()})
+        super().__init__({name: from_typing(kind, kwargs.get('ignore_rest', False))
+                          for name, kind in named_tuple._field_types.items()},
+                         **kwargs)
 
     def _convert(self, value, path, named_tuple_to_dict=False, **kwargs):
         orig = value
