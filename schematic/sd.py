@@ -400,7 +400,7 @@ class Generic(Schema):
 
 class String(Schema):
     # Let's wrap the converter in a list, so it won't become a method.
-    _converters = [(lambda x: x if isinstance(x, str) else (str(x).decode('utf-8')))]
+    _converters = [(lambda x: x if isinstance(x, str) else (bytes(x).decode('utf-8')))]
 
     def __init__(self, blank=False, strip_whitespace=True, **kwargs):
         super().__init__(**kwargs)
