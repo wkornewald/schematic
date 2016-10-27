@@ -7,10 +7,10 @@ try:
 except ImportError:
     UTC = None
 
-_BAD_VALUE = object()
+_UNDEFINED = object()
 
 class Invalid(Exception):
-    def __init__(self, raisor, path=(), message='', children=(), bad_value=_BAD_VALUE):
+    def __init__(self, raisor, path=(), message='', children=(), bad_value=_UNDEFINED):
         self.raisor = raisor
         self.message = message
         if not isinstance(children, (list, tuple)):
@@ -38,7 +38,7 @@ class Invalid(Exception):
                     result.append(child.message.rjust(len(prefix)))
                     index += 1
 
-        if self.bad_value is not _BAD_VALUE:
+        if self.bad_value is not _UNDEFINED:
             result.append('\nOriginal value: {!r}'.format(self.bad_value))
         if len(result) == 1:
             return result[0]
@@ -203,12 +203,25 @@ class EmailValidator(object):
 class Schema:
     default_validators = []
 
-    def __init__(self, null=False, optional=False, validators=None):
+    def __init__(self, null=False, optional=False, validators=None, default=_UNDEFINED,
+                 use_default_for_invalid=False):
         self.null = null
         self.optional = optional
+        self.default = default
+        self.use_default_for_invalid = use_default_for_invalid
         self.validators = self.default_validators[:]
         if validators:
             self.validators.extend(validators)
+
+    def has_default(self):
+        return self.default is not _UNDEFINED
+
+    def get_default(self, path):
+        if self.default is _UNDEFINED:
+            raise Invalid(self, path, 'This value is required.')
+        if callable(self.default):
+            return self.default()
+        return self.default
 
     def convert(self, value, path=(), **kwargs):
         # Forms can only represent empty strings, but not None. Convert empty strings.
@@ -217,15 +230,24 @@ class Schema:
 
         if value is None:
             if not self.null:
+                if self.use_default_for_invalid:
+                    return self.get_default(path)
                 raise Invalid(self, path, 'This value is required.')
             return None
-        value = self._convert(value, path, **kwargs)
+        try:
+            value = self._convert(value, path, **kwargs)
+        except Invalid:
+            if self.use_default_for_invalid:
+                return self.get_default(path)
+            raise
 
         errors = []
         for validator in self.validators:
             try:
                 validator.check(value, path)
             except Invalid as error:
+                if self.use_default_for_invalid:
+                    return self.get_default(path)
                 errors.append(error)
         if errors:
             raise Invalid(self, path, children=errors, bad_value=value)
@@ -316,6 +338,9 @@ class Dict(NestedSchema):
                     seen.add(key)
 
                     if key not in value:
+                        if schema.has_default():
+                            result[key] = schema.get_default(path + (key,))
+                            continue
                         raise MissingEntry(self, path + (key,), 'The "%s" entry is missing.' % key)
                     result[key] = schema.convert(value[key], path + (key,), **kwargs)
                 except Invalid as error:

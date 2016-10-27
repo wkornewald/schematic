@@ -111,3 +111,13 @@ class SchemaTests(TestCase):
         value = [1, 'a', 2]
         schema = sd.List([sd.Int(), sd.String()], ignore_rest=True)
         self.assertEqual(value[:len(schema.schema)], schema.convert(value))
+
+    def test_default(self):
+        schema = sd.Dict({'a': sd.Int(default=lambda: 2)})
+        value = {'a': 1}
+        self.assertEqual(value, schema.convert(value))
+        self.assertEqual({'a': 2}, schema.convert({}))
+
+    def test_default_for_invalid(self):
+        schema = sd.Dict({'a': sd.Int(default=lambda: 2, use_default_for_invalid=True)})
+        self.assertEqual({'a': 2}, schema.convert({'a': 'gaga'}))
