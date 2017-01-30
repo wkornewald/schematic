@@ -39,13 +39,14 @@ class Invalid(Exception):
                     index += 1
 
         if self.bad_value is not _UNDEFINED:
-            result.append('\nOriginal value: {!r}'.format(self.bad_value))
+            result.append(f'\nOriginal value: {self.bad_value!r}')
         if len(result) == 1:
             return result[0]
         return '\n' + '\n'.join(result)
 
     def flattened(self):
-        return {'.'.join(map(str, path)): children for path, children in self.children.items()}
+        return {'.'.join(map(str, path)): children
+                for path, children in self.children.items()}
 
     def add(self, errors):
         if not hasattr(errors, '__iter__'):
@@ -71,8 +72,9 @@ class MinLength(object):
     def check(self, value, path):
         min_length = self.get_value()
         if len(value) > min_length:
-            raise MinLengthError(self, path, 'Ensure this value has at most %d characters '
-                                             '(it has %d).' % (min_length, len(value)),
+            raise MinLengthError(self, path,
+                                 f'Ensure this value has at most {min_length} characters '
+                                 f'(it has {len(value)}).',
                                  bad_value=value)
 
     def get_value(self):
@@ -91,8 +93,9 @@ class MaxLength(object):
     def check(self, value, path):
         max_length = self.get_value()
         if len(value) > max_length:
-            raise MaxLengthError(self, path, 'Ensure this value has at most %d characters '
-                                             '(it has %d).' % (max_length, len(value)),
+            raise MaxLengthError(self, path,
+                                 f'Ensure this value has at most {max_length} characters '
+                                 f'(it has {len(value)}).',
                                  bad_value=value)
 
     def get_value(self):
@@ -111,7 +114,9 @@ class MinValue(object):
     def check(self, value, path):
         min_value = self.get_value()
         if value < min_value:
-            raise MinValueError(self, path, 'This value must be larger than %s.' % min_value, bad_value=value)
+            raise MinValueError(self, path,
+                                f'This value must be larger than {min_value}.',
+                                bad_value=value)
 
     def get_value(self):
         min_value = self.min_value
@@ -129,7 +134,9 @@ class MaxValue(object):
     def check(self, value, path):
         max_value = self.get_value()
         if value > max_value:
-            raise MaxValueError(self, path, 'This value must be smaller than %s.' % max_value, bad_value=value)
+            raise MaxValueError(self, path,
+                                f'This value must be smaller than {max_value}.',
+                                bad_value=value)
 
     def get_value(self):
         max_value = self.max_value
@@ -147,12 +154,14 @@ class Equals(object):
     def check(self, value, path):
         _value = self.get_value()
         if value != _value:
-            raise EqualsError(self, path, 'This value must be equal to %r.' % _value, bad_value=value)
+            raise EqualsError(self, path,
+                              f'This value must be equal to {_value!r}.',
+                              bad_value=value)
 
     def get_value(self):
         value = self.value
         if callable(value):
-            _value = value()
+            return value()
         return value
 
 class InError(Invalid):
@@ -164,7 +173,8 @@ class In(object):
 
     def check(self, value, path):
         if value not in self.choice:
-            raise InError(self, path, 'This value must be one of: %s' % ', '.join(map(repr, self.choice)),
+            allowed = ', '.join(map(repr, self.choice))
+            raise InError(self, path, f'This value must be one of: {allowed}',
                           bad_value=value)
 
     def get_value(self):
@@ -189,16 +199,17 @@ class EmailValidator(object):
         orig_value = value
         if not email_re.match(value):
             # Trivial case failed. Try for possible IDN domain-part
-            if value and u'@' in value:
-                parts = value.split(u'@')
+            if value and '@' in value:
+                parts = value.split('@')
                 try:
                     parts[-1] = parts[-1].encode('idna')
                 except UnicodeError:
                     raise
-                value = u'@'.join(parts)
+                value = '@'.join(parts)
             if email_re.match(value):
                 return
-            raise EmailValidatorError(self, path, 'Enter a valid e-mail address.', bad_value=orig_value)
+            raise EmailValidatorError(self, path, 'Enter a valid e-mail address.',
+                                      bad_value=orig_value)
 
 class Schema:
     default_validators = []
@@ -329,7 +340,8 @@ class Dict(NestedSchema):
                     if not isinstance(schema, Schema):
                         seen.add(key)
                         if key not in value or schema != value[key]:
-                            raise Invalid(self, path + (key,), 'This value must be equal to %r.' % schema)
+                            raise Invalid(self, path + (key,),
+                                          f'This value must be equal to {schema!r}.')
                         result[key] = value[key]
                         continue
                     elif schema.optional and key not in value:
@@ -341,7 +353,8 @@ class Dict(NestedSchema):
                         if schema.has_default():
                             result[key] = schema.get_default(path + (key,))
                             continue
-                        raise MissingEntry(self, path + (key,), 'The "%s" entry is missing.' % key)
+                        raise MissingEntry(self, path + (key,),
+                                           f'The {key!r} entry is missing.')
                     result[key] = schema.convert(value[key], path + (key,), **kwargs)
                 except Invalid as error:
                     errors.append(error)
@@ -350,8 +363,9 @@ class Dict(NestedSchema):
             if not self.ignore_rest:
                 non_converted = set(value) - seen
                 if non_converted:
-                    error = UnconvertedValues(self, path, 'Unconverted values: ' + ', '.join(non_converted),
-                                              bad_value=value)
+                    error = UnconvertedValues(self, path,
+                        f"Unconverted values: {', '.join(non_converted)}",
+                        bad_value=value)
             if errors:
                 if not error:
                     error = Invalid(self, path, bad_value=value)
@@ -384,7 +398,9 @@ class IterableSchema(NestedSchema):
         if isinstance(self.schema, (tuple, list)):
             check_value = value[:len(self.schema)] if self.ignore_rest else value
             if len(check_value) != len(self.schema):
-                error = Invalid(self, path, 'This value must have %d entries.' % len(self.schema), bad_value=value)
+                error = Invalid(self, path,
+                                f'This value must have {len(self.schema)} entries.',
+                                bad_value=value)
                 errors.append(error)
             else:
                 for index, subvalue in enumerate(check_value):
@@ -585,6 +601,14 @@ FIELD_TYPES_MAPPING = {
 }
 
 def from_typing(kind, ignore_rest=False, **kwargs):
+    if kind.__class__ is typing.Union.__class__:
+        union = set(kind.__args__)
+        if type(None) in union:
+            kwargs['null'] = True
+            union -= {type(None)}
+        if len(union) == 1:
+            return from_typing(list(union)[0], ignore_rest, **kwargs)
+        return OneOf([from_typing(f, ignore_rest) for f in union], **kwargs)
     if issubclass(kind, tuple) and hasattr(kind, '_field_types'):
         return NamedTuple(kind, ignore_rest=ignore_rest, **kwargs)
     if issubclass(kind, typing.Dict):
@@ -595,14 +619,6 @@ def from_typing(kind, ignore_rest=False, **kwargs):
     if issubclass(kind, typing.Tuple):
         return Tuple([from_typing(f, ignore_rest) for f in kind.__args__],
                      **kwargs)
-    if issubclass(kind, typing.Union):
-        union = kind.__union_set_params__
-        if type(None) in union:
-            kwargs['null'] = True
-            union -= {type(None)}
-        if len(union) == 1:
-            return from_typing(list(union)[0], ignore_rest, **kwargs)
-        return OneOf([from_typing(f, ignore_rest) for f in union], **kwargs)
     return FIELD_TYPES_MAPPING[kind](**kwargs)
 
 class NamedTuple(Dict):
