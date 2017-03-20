@@ -71,9 +71,9 @@ class MinLength(object):
 
     def check(self, value, path):
         min_length = self.get_value()
-        if len(value) > min_length:
+        if len(value) < min_length:
             raise MinLengthError(self, path,
-                                 f'Ensure this value has at most {min_length} characters '
+                                 f'Ensure this value has at most {min_length} entries '
                                  f'(it has {len(value)}).',
                                  bad_value=value)
 
@@ -94,7 +94,7 @@ class MaxLength(object):
         max_length = self.get_value()
         if len(value) > max_length:
             raise MaxLengthError(self, path,
-                                 f'Ensure this value has at most {max_length} characters '
+                                 f'Ensure this value has at most {max_length} entries '
                                  f'(it has {len(value)}).',
                                  bad_value=value)
 
@@ -618,8 +618,12 @@ def from_typing(kind, ignore_rest=False, **kwargs):
     if issubclass(kind, typing.List):
         return List(from_typing(kind.__args__[0], ignore_rest), **kwargs)
     if issubclass(kind, typing.Tuple):
-        return Tuple([from_typing(f, ignore_rest) for f in kind.__args__],
-                     **kwargs)
+        # TODO: List and Dict may have to be adjusted for the two modes too!
+        kind_args = [f for f in kind.__args__ if f is not Ellipsis]
+        if len(kind_args) > 1:
+            return Tuple([from_typing(f, ignore_rest) for f in kind_args],
+                         **kwargs)
+        return Tuple(from_typing(kind_args[0], ignore_rest), **kwargs)
     return FIELD_TYPES_MAPPING[kind](**kwargs)
 
 class NamedTuple(Dict):
