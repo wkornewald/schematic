@@ -478,7 +478,7 @@ class Number(Schema):
             for converter in self._converters:
                 value = converter(value)
             return value
-        except ValueError:
+        except (ValueError, TypeError) as e:
             raise Invalid(self, path, self._error)
 
 class Int(Number):
