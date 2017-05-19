@@ -169,7 +169,7 @@ class InError(Invalid):
 
 class In(object):
     def __init__(self, choice):
-        self.choice = choice
+        self.choice = list(choice)
 
     def check(self, value, path):
         if value not in self.choice:
