@@ -8,24 +8,19 @@ ehthumbs.db
 Thumbs.db
 AlbumArt*
 
-.idea
+.idea/*
+!/.idea/codeStyleSettings.xml
+!/.idea/inspectionProfiles
 .idea_*
+.vscode
 .sublime-*
 .settings
 .vagrant
 nbproject
 atlassian-ide-plugin.xml
 
-.gaedata
-.repos
 .venv
-.vex
-.vex2
-.vex3
-
-_generated_*
-.cache_*
-settings_local.py
+/_generated_*
 
 *.egg-info
 bin
